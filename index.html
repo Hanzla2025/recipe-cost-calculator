@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LABAN RECIPE CALCULATOR</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        'primary': '#0077b6',   // Your primary blue
+                        'secondary': '#00b4d8', // Your secondary cyan
+                        'bg-light': '#f8fafc',  // A very light, clean bg
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Chart.js CDN for Visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+    <!-- jsPDF and html2canvas for PDF Download -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- *** FIX: Added jsPDF autoTable plugin *** -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        /* Professional, clean design */
+        .card {
+            @apply bg-white p-6 rounded-xl shadow-lg border border-gray-100;
+        }
+        
+        input[type="number"], input[type="text"], select {
+            @apply w-full p-3 border border-gray-300 rounded-lg bg-white text-gray-900 transition-all duration-200;
+        }
+        input:focus, select:focus {
+             @apply outline-none ring-2 ring-primary border-transparent;
+        }
+
+        .btn {
+            @apply w-full h-12 font-bold py-2 px-4 rounded-lg shadow-md transition-all duration-200 text-white flex items-center justify-center;
+        }
+        .btn-primary {
+            @apply bg-primary hover:bg-opacity-90;
+        }
+        .btn-secondary {
+            @apply bg-secondary hover:bg-opacity-90;
+        }
+
+        .summary-box {
+            @apply bg-bg-light rounded-xl p-4 space-y-3 shadow-inner;
+        }
+
+        label {
+            @apply block text-sm font-medium text-gray-700 mb-2;
+        }
+
+        /* Responsive Table: Hides less critical columns on screens smaller than 'md' */
+        .responsive-table th:nth-child(3), .responsive-table td:nth-child(3), /* P. Price */
+        .responsive-table th:nth-child(4), .responsive-table td:nth-child(4) { /* Unit Cost (g) */
+            @apply hidden md:table-cell; 
+        }
+    </style>
+</head>
+<body class="bg-bg-light min-h-screen p-4 sm:p-8 font-sans">
+
+    <div id="app" class="max-w-7xl mx-auto">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl sm:text-4xl font-extrabold text-gray-900">LABAN RECIPE CALCULATOR</h1>
+            <p class="text-gray-600 mt-2"></p>
+        </header>
+
+        <!-- Main Grid Layout -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+            <!-- Left Column: Input and Setup -->
+            <div class="lg:col-span-2 space-y-8">
+                
+                <!-- Section 1: Recipe Info -->
+                <div class="card" id="recipe-info-section">
+                    <h2 class="text-2xl font-bold mb-5 text-primary">1. Recipe Details</h2>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label for="recipe-name">Recipe Name</label>
+                            <input type="text" id="recipe-name" value="New Dessert Recipe" placeholder="e.g., Chocolate Cake">
+                        </div>
+                        <div>
+                            <label for="serving-gramage">Serving Size (grams)</label>
+                            <input type="number" id="serving-gramage" value="100" min="1" placeholder="e.g., 100">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 2: Ingredient Entry -->
+                <div class="card" id="ingredient-entry-section">
+                    <h2 class="text-2xl font-bold mb-5 text-primary">2. Add Ingredients (Batch)</h2>
+                    
+                    <div class="space-y-6">
+                        <!-- Add Existing Ingredient Form -->
+                        <div class="bg-gray-50 p-4 rounded-lg border">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-3">Add from Inventory (Price Editable)</h3>
+                            <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 sm:gap-4 items-end">
+                                <div class="col-span-2 sm:col-span-2">
+                                    <label for="inventory-select">Select Item</label>
+                                    <select id="inventory-select" onchange="updatePurchasePrice()">
+                                        <!-- Options populated by JS -->
+                                    </select>
+                                </div>
+                                <div>
+                                    <label for="input-purchase-price">Price</label>
+                                    <input type="number" id="input-purchase-price" placeholder="Price" min="0">
+                                </div>
+                                <div>
+                                    <label for="input-weight-used">Weight (g)</label>
+                                    <input type="number" id="input-weight-used" placeholder="Grams" min="0">
+                                </div>
+                                <div class="col-span-2 sm:col-span-1">
+                                    <button onclick="addIngredient('inventory')" class="btn btn-secondary">
+                                        Add
+                                    </button>
+                                </div>
+                            </div>
+                            <p id="inventory-error" class="text-red-600 text-sm mt-2 h-4"></p> <!-- Error message placeholder -->
+                        </div>
+
+                        <!-- Add New Ingredient Form -->
+                        <div class="bg-gray-50 p-4 rounded-lg border">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-3">Add New Custom Item</h3>
+                            <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 sm:gap-4 items-end">
+                                <div>
+                                    <label for="custom-name">Name</label>
+                                    <input type="text" id="custom-name" placeholder="Name">
+                                </div>
+                                <div>
+                                    <label for="custom-price">P. Price</label>
+                                    <input type="number" id="custom-price" placeholder="Price" min="0">
+                                </div>
+                                <div>
+                                    <label for="custom-weight-pkg">Pkg Wt (g)</label>
+                                    <input type="number" id="custom-weight-pkg" placeholder="Pkg Wt (g)" min="1">
+                                </div>
+                                <div>
+                                    <label for="custom-weight-used">Weight (g)</label>
+                                    <input type="number" id="custom-weight-used" placeholder="Grams" min="0">
+                                </div>
+                                <div class="col-span-2 sm:col-span-1">
+                                    <button onclick="addIngredient('custom')" class="btn btn-primary">
+                                        Add Custom
+                                    </button>
+                                </div>
+                            </div>
+                            <p id="custom-error" class="text-red-600 text-sm mt-2 h-4"></p> <!-- Error message placeholder -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recipe Breakdown Table -->
+                <div class="card" id="recipe-list-section">
+                    <h2 class="text-2xl font-bold mb-5 text-primary">3. Batch Ingredients Breakdown</h2>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200 responsive-table">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Item</th>
+                                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Weight (g)</th>
+                                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">P. Price</th>
+                                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">Unit Cost (g)</th>
+                                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Cost</th>
+                                    <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recipe-table-body" class="bg-white divide-y divide-gray-200">
+                                <!-- Recipe rows will be inserted here -->
+                                <tr><td colspan="6" class="p-4 text-center text-gray-500">Add ingredients above to start.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Right Column: Results and Output (Sticks on top on large screens) -->
+            <div class="lg:col-span-1 space-y-8 lg:sticky lg:top-8">
+                
+                <!-- Section 4: Summary & Margin -->
+                <div class="card" id="summary-margin-section">
+                    <h2 class="text-2xl font-bold mb-5 text-primary">4. Cost & Margin</h2>
+                    
+                    <div id="calculation-summary" class="summary-box mb-6">
+                        <div class="flex justify-between font-semibold text-gray-700 border-b border-gray-200 pb-2">
+                            <span>Total Batch Weight:</span>
+                            <span id="total-weight">0.00 g</span>
+                        </div>
+                        <div class="flex justify-between font-semibold text-gray-700">
+                            <span>Total Batch Cost:</span>
+                            <span id="total-batch-cost" class="text-lg text-red-600 font-bold">0.00</span>
+                        </div>
+                        <div class="flex justify-between font-semibold text-gray-800 border-t border-gray-200 pt-2 mt-2">
+                            <span>Cost Per Gram:</span>
+                            <span id="cost-per-gram" class="text-xl text-primary font-bold">0.0000</span>
+                        </div>
+                         <div class="flex justify-between font-bold text-gray-800 border-t border-gray-200 pt-2 mt-2">
+                            <span>COST PER SERVING:</span>
+                            <span id="cost-per-serving" class="text-xl text-primary font-bold">0.00</span>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <h3 class="text-lg font-semibold text-gray-800">Serving Margin Calculation</h3>
+                        <div>
+                            <label for="margin-percentage">Desired Margin Percentage (%)</label>
+                            <input type="number" id="margin-percentage" value="30" min="0" max="100" oninput="calculate()">
+                        </div>
+                        
+                        <div class="p-4 rounded-lg bg-green-50 border border-green-200">
+                            <div class="flex justify-between font-bold text-lg text-green-700">
+                                <span>TOTAL SELLING PRICE:</span>
+                                <span id="selling-price">0.00</span>
+                            </div>
+                            <div class="flex justify-between text-sm text-green-600 mt-1">
+                                <span>Profit Per Serving:</span>
+                                <span id="profit-amount">0.00</span>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Section 5: Visualization -->
+                <div class="card" id="visualization-section">
+                    <h2 class="text-2xl font-bold mb-5 text-primary">5. Batch Cost Breakdown</h2>
+                    
+                    <!-- Pie Chart Canvas -->
+                    <div class="h-64 mb-6">
+                        <canvas id="costPieChart"></canvas>
+                    </div>
+
+                    <h3 class="text-lg font-semibold text-gray-800 mb-3">Statistical Contribution</h3>
+                    <div id="statistical-breakdown" class="text-sm space-y-1">
+                        <p class="text-gray-500">No ingredients added yet.</p>
+                    </div>
+                </div>
+                
+                <!-- Download PDF Button -->
+                <button onclick="generatePDF()" class="btn btn-primary w-full">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    Download Recipe PDF
+                </button>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. INITIAL SETUP AND CSV DATA PARSING ---
+
+        // CSV content provided by the user (cleaned and slightly formatted for easy parsing)
+        const rawCsvData = "ingredient,purchase price,package weight\nflour,6400,50000\nsemolina,180,1000\ngranulated sugar,10200,50000\npacket brown sugar,450,800\nopen brown sugar,250,1000\nopen icing sugar,200,1000\npacket icing sugar,490,800\nhoney ,2500,1000\nglucose,450,1000\nblanco butter,950,1000\nfaisalabad butter,1680,1000\nfauji oil,7650,16000\nmeezan oil,7800,16000\nsofi ghee,9300,16000\nkhoya,1450,1000\nolpers milk,4000,12000\nmilkfield milk,3360,12000\nasli milk,3300,12000\ncondensed milk,12720,24000\nevaporated ,16800,18720\nmaster-chef whipping cream,350,350\nyoungs whipping cream,540,550\nwhipy whip whipping cream,7600,12000\nsilver whipping cream,18000,12000";
+
+        let inventory = {}; // { 'flour': { price, weight, unitCost, isCustom: false }, ... }
+        let recipe = [];    // [{ id, name, purchasePrice, packageWeight, weightUsed, unitCost, totalCost }]
+        let chartInstance = null;
+        let nextRecipeItemId = 1;
+
+        // Function to parse the CSV string into the inventory object
+        function parseInventory(csv) {
+            const lines = csv.split('\n');
+            const headers = lines[0].split(',').map(h => h.trim());
+            
+            for (let i = 1; i < lines.length; i++) {
+                const values = lines[i].split(',').map(v => v.trim());
+                if (values.length >= 3) {
+                    const name = values[0].toLowerCase();
+                    const purchasePrice = parseFloat(values[1]) || 0;
+                    const packageWeight = parseFloat(values[2]) || 1; // Prevent division by zero
+                    
+                    inventory[name] = {
+                        name: values[0], // Store original case for display
+                        price: purchasePrice,
+                        weight: packageWeight,
+                        unitCost: purchasePrice / packageWeight,
+                        isCustom: false
+                    };
+                }
+            }
+        }
+
+        // --- 2. RECIPE MANAGEMENT FUNCTIONS ---
+
+        // Populates the dropdown menu with inventory items
+        function populateInventorySelect() {
+            const select = document.getElementById('inventory-select');
+            select.innerHTML = '<option value="">-- Select Ingredient --</option>';
+            const sortedNames = Object.keys(inventory).sort();
+            
+            sortedNames.forEach(key => {
+                const item = inventory[key];
+                const option = document.createElement('option');
+                option.value = key;
+                option.textContent = item.name;
+                select.appendChild(option);
+            });
+        }
+
+        // Updates the Purchase Price input when an item is selected
+        function updatePurchasePrice() {
+            const select = document.getElementById('inventory-select');
+            const priceInput = document.getElementById('input-purchase-price');
+            const selectedKey = select.value;
+            
+            if (selectedKey && inventory[selectedKey]) {
+                priceInput.value = inventory[selectedKey].price;
+            } else {
+                priceInput.value = '';
+            }
+        }
+
+        // Adds an ingredient (from inventory or custom) to the recipe
+        function addIngredient(type) {
+            let name, purchasePrice, packageWeight, weightUsed;
+            
+            // Get error message elements
+            const inventoryError = document.getElementById('inventory-error');
+            const customError = document.getElementById('custom-error');
+            
+            // Clear previous errors
+            inventoryError.textContent = '';
+            customError.textContent = '';
+            
+            // Regex for checking empty or whitespace-only strings
+            const emptyOrWhitespaceRegex = /^\s*$/;
+
+            if (type === 'inventory') {
+                const select = document.getElementById('inventory-select');
+                const selectedKey = select.value;
+                purchasePrice = parseFloat(document.getElementById('input-purchase-price').value);
+                weightUsed = parseFloat(document.getElementById('input-weight-used').value);
+
+                if (!selectedKey) {
+                    inventoryError.textContent = 'Please select an item.';
+                    return;
+                }
+                if (isNaN(purchasePrice) || purchasePrice < 0) {
+                    inventoryError.textContent = 'Please enter a valid price.';
+                    return;
+                }
+                if (isNaN(weightUsed) || weightUsed <= 0) {
+                    inventoryError.textContent = 'Please enter a valid weight.';
+                    return;
+                }
+                
+                const originalItem = inventory[selectedKey];
+                name = originalItem.name;
+                packageWeight = originalItem.weight;
+
+            } else if (type === 'custom') {
+                name = document.getElementById('custom-name').value;
+                purchasePrice = parseFloat(document.getElementById('custom-price').value);
+                packageWeight = parseFloat(document.getElementById('custom-weight-pkg').value);
+                weightUsed = parseFloat(document.getElementById('custom-weight-used').value);
+                
+                if (!name || emptyOrWhitespaceRegex.test(name)) {
+                    customError.textContent = 'Please enter a valid name.';
+                    return;
+                }
+                if (isNaN(purchasePrice) || purchasePrice < 0) {
+                    customError.textContent = 'Please enter a valid price.';
+                    return;
+                }
+                if (isNaN(packageWeight) || packageWeight <= 0) {
+                    customError.textContent = 'Please enter valid package weight.';
+                    return;
+                }
+                if (isNaN(weightUsed) || weightUsed <= 0) {
+                    customError.textContent = 'Please enter a valid weight used.';
+                    return;
+                }
+            }
+
+            const unitCost = purchasePrice / packageWeight;
+            const totalCost = unitCost * weightUsed;
+
+            recipe.push({
+                id: nextRecipeItemId++,
+                name: name,
+                purchasePrice: purchasePrice,
+                packageWeight: packageWeight,
+                weightUsed: weightUsed,
+                unitCost: unitCost,
+                totalCost: totalCost
+            });
+
+            renderRecipeList();
+            calculate();
+            
+            // Clear inputs after adding
+            if (type === 'inventory') {
+                document.getElementById('inventory-select').value = '';
+                document.getElementById('input-purchase-price').value = '';
+                document.getElementById('input-weight-used').value = '';
+            } else {
+                document.getElementById('custom-name').value = '';
+                document.getElementById('custom-price').value = '';
+                document.getElementById('custom-weight-pkg').value = '';
+                document.getElementById('custom-weight-used').value = '';
+            }
+        }
+
+        // Removes an ingredient from the recipe
+        function removeItem(id) {
+            recipe = recipe.filter(item => item.id !== id);
+            renderRecipeList();
+            calculate();
+        }
+
+        // Renders the recipe list table
+        function renderRecipeList() {
+            const tbody = document.getElementById('recipe-table-body');
+            if (recipe.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-500">Add ingredients above to start.</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = recipe.map(item => `
+                <tr class="hover:bg-gray-50">
+                    <td class="px-3 py-3 whitespace-nowrap text-sm font-medium text-gray-900">${item.name}</td>
+                    <td class="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
+                        ${item.weightUsed.toFixed(2)} g
+                    </td>
+                    <td class="px-3 py-3 whitespace-nowrap text-sm text-gray-500 hidden md:table-cell">${item.purchasePrice.toFixed(2)}</td>
+                    <td class="px-3 py-3 whitespace-nowrap text-sm text-gray-500 hidden md:table-cell">${item.unitCost.toFixed(4)}</td>
+                    <td class="px-3 py-3 whitespace-nowrap text-sm font-bold text-gray-700">${item.totalCost.toFixed(2)}</td>
+                    <td class="px-3 py-3 whitespace-nowrap text-right text-sm font-medium">
+                        <button onclick="removeItem(${item.id})" class="text-red-600 hover:text-red-900 transition duration-150">
+                            Remove
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+
+        // --- 3. CALCULATION AND VISUALIZATION ---
+
+        function calculate() {
+            const totalBatchCost = recipe.reduce((sum, item) => sum + item.totalCost, 0);
+            const totalBatchWeight = recipe.reduce((sum, item) => sum + item.weightUsed, 0);
+            const servingGramage = parseFloat(document.getElementById('serving-gramage').value) || 0;
+            let marginPercentage = parseFloat(document.getElementById('margin-percentage').value) || 0;
+
+            // Cap margin
+            if (marginPercentage > 99.99) {
+                marginPercentage = 99.99;
+                document.getElementById('margin-percentage').value = 99.99;
+            }
+            if (marginPercentage < 0) {
+                marginPercentage = 0;
+                document.getElementById('margin-percentage').value = 0;
+            }
+            
+            // Calculations
+            const costPerGram = totalBatchWeight > 0 ? totalBatchCost / totalBatchWeight : 0;
+            const costPerServing = costPerGram * servingGramage;
+            // The formula is: SellingPrice = Cost / (1 - Margin%)
+            const sellingPrice = costPerServing / (1 - (marginPercentage / 100));
+            const profitAmount = sellingPrice - costPerServing;
+
+            // Update Summary UI
+            document.getElementById('total-weight').textContent = `${totalBatchWeight.toFixed(2)} g`;
+            document.getElementById('total-batch-cost').textContent = totalBatchCost.toFixed(2);
+            document.getElementById('cost-per-gram').textContent = costPerGram.toFixed(4);
+            document.getElementById('cost-per-serving').textContent = costPerServing.toFixed(2);
+            
+            document.getElementById('selling-price').textContent = sellingPrice.toFixed(2);
+            document.getElementById('profit-amount').textContent = profitAmount.toFixed(2);
+
+            // Update Visualization
+            updateChart(totalBatchCost); // Chart should be based on TOTAL batch cost
+            updateStatisticalBreakdown(totalBatchCost); // Breakdown also based on TOTAL batch cost
+        }
+
+        function updateStatisticalBreakdown(totalCost) {
+            const breakdownDiv = document.getElementById('statistical-breakdown');
+            if (recipe.length === 0) {
+                breakdownDiv.innerHTML = '<p class="text-gray-500">No ingredients added yet.</p>';
+                return;
+            }
+
+            breakdownDiv.innerHTML = recipe.map(item => {
+                const percentage = totalCost > 0 ? (item.totalCost / totalCost) * 100 : 0;
+                return `
+                    <div class="flex justify-between">
+                        <span class="font-medium text-gray-800">${item.name}</span>
+                        <span class="text-gray-600">${percentage.toFixed(2)}% (${item.totalCost.toFixed(2)})</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Utility for generating random colors for the chart
+        function getRandomColor(index) {
+            // Colors based on the new theme
+            const colors = [
+                '#0077b6', // primary
+                '#00b4d8', // secondary
+                '#0096c7', // mid-blue
+                '#90e0ef', // light-blue
+                '#caf0f8'  // accent
+            ];
+            return colors[index % colors.length];
+        }
+
+        function updateChart(totalCost) {
+            const ctx = document.getElementById('costPieChart').getContext('2d');
+            
+            // Collect data for the chart
+            const labels = recipe.map(item => item.name);
+            const data = recipe.map(item => item.totalCost);
+            const colors = recipe.map((_, index) => getRandomColor(index));
+
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            chartInstance = new Chart(ctx, {
+                type: 'doughnut', 
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: colors,
+                        hoverOffset: 4,
+                        borderColor: '#f8fafc', // Match body bg for a clean look
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom', // Better for mobile
+                            labels: {
+                                usePointStyle: true,
+                                padding: 20,
+                            }
+                        },
+                        title: {
+                            display: false, // Title is in the heading
+                        }
+                    },
+                    cutout: '60%' // Makes it a doughnut
+                }
+            });
+        }
+
+        // --- 4. PDF GENERATION (jsPDF) ---
+        
+        async function generatePDF() {
+            if (recipe.length === 0) {
+                console.error("Cannot generate PDF: Recipe is empty.");
+                return;
+            }
+
+            // Using jsPDF and jsPDF-AutoTable from the loaded UMD script
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF('p', 'mm', 'a4');
+
+            const recipeName = document.getElementById('recipe-name').value || 'Untitled Recipe';
+            const servingGramage = document.getElementById('serving-gramage').value || 0;
+            const totalBatchCost = document.getElementById('total-batch-cost').textContent;
+            const totalBatchWeight = document.getElementById('total-weight').textContent;
+            const costPerGram = document.getElementById('cost-per-gram').textContent;
+            const costPerServing = document.getElementById('cost-per-serving').textContent;
+            const sellingPrice = document.getElementById('selling-price').textContent;
+            const marginPercentage = document.getElementById('margin-percentage').value || 0;
+            const profitAmount = document.getElementById('profit-amount').textContent;
+
+            let y = 10;
+            const lineHeight = 7;
+
+            // Title
+            doc.setFontSize(22);
+            doc.text(`LABAN Recipe Cost Analysis: ${recipeName}`, 10, y += lineHeight);
+            doc.line(10, y + 1, 200, y + 1); // Separator
+            y += lineHeight;
+
+            // Summary
+            doc.setFontSize(14);
+            doc.text('Cost & Margin Summary', 10, y += lineHeight);
+            doc.setFontSize(11);
+            doc.text(`Total Batch Weight: ${totalBatchWeight}`, 10, y += lineHeight);
+            doc.text(`Total Batch Cost: ${totalBatchCost}`, 10, y += lineHeight);
+            doc.text(`Cost Per Gram: ${costPerGram}`, 10, y += lineHeight);
+            y += lineHeight * 0.5;
+            
+            doc.text(`Serving Size: ${servingGramage} grams`, 10, y += lineHeight);
+            doc.text(`Cost Per Serving: ${costPerServing}`, 10, y += lineHeight);
+            doc.text(`Desired Margin: ${marginPercentage}%`, 10, y += lineHeight);
+            doc.text(`Profit Per Serving: ${profitAmount}`, 10, y += lineHeight);
+            doc.setFontSize(12);
+            doc.text(`Recommended Selling Price: ${sellingPrice}`, 10, y += lineHeight);
+            y += lineHeight;
+
+            // Ingredient Table
+            doc.setFontSize(14);
+            doc.text('Batch Ingredient Breakdown', 10, y += lineHeight);
+            
+            const tableColumn = ["Item", "Weight (g)", "P. Price", "Pkg Wt (g)", "Unit Cost (g)", "Total Cost"];
+            const tableRows = recipe.map(item => [
+                item.name,
+                item.weightUsed.toFixed(2),
+                item.purchasePrice.toFixed(2),
+                item.packageWeight.toFixed(2),
+                item.unitCost.toFixed(4),
+                item.totalCost.toFixed(2)
+            ]);
+
+            // Using the loaded autoTable function
+            doc.autoTable({
+                startY: y + 2,
+                head: [tableColumn],
+                body: tableRows,
+                theme: 'striped',
+                headStyles: { fillColor: [0, 119, 182] }, // RGB for #0077b6
+                margin: { top: 5, left: 10, right: 10, bottom: 10 },
+                styles: { fontSize: 8 },
+                didDrawPage: function(data) {
+                    y = data.cursor.y; // Update Y position after table draw
+                }
+            });
+
+            // Save PDF
+            doc.save(`${recipeName.replace(/\s/g, '_')}_LABAN_Report.pdf`);
+        }
+
+        // --- 5. INITIALIZATION ---
+
+        function init() {
+            parseInventory(rawCsvData);
+            populateInventorySelect();
+            renderRecipeList();
+            calculate(); // Initial calculation to display zeros/defaults
+            
+            // Add listeners for recipe info fields
+            document.getElementById('serving-gramage').addEventListener('input', calculate);
+            document.getElementById('recipe-name').addEventListener('input', calculate); // For PDF title sync
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
+

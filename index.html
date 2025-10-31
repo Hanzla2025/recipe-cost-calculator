@@ -287,6 +287,38 @@
             border-bottom: none;
         }
         
+        .weight-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .weight-card {
+            background-color: var(--light);
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            border-left: 4px solid var(--primary);
+        }
+        
+        .weight-card h3 {
+            font-size: 14px;
+            margin-bottom: 5px;
+            color: var(--dark);
+        }
+        
+        .weight-card p {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--primary);
+        }
+        
+        .weight-card.total-weight {
+            background-color: #e8f4fd;
+            border-left: 4px solid var(--accent);
+        }
+        
         /* Responsive Design */
         @media (max-width: 768px) {
             .container {
@@ -321,7 +353,7 @@
                 padding: 8px 10px;
             }
             
-            .summary {
+            .summary, .weight-summary {
                 grid-template-columns: 1fr;
             }
             
@@ -356,11 +388,11 @@
                 padding: 6px 8px;
             }
             
-            .summary-card {
+            .summary-card, .weight-card {
                 padding: 10px;
             }
             
-            .summary-card p {
+            .summary-card p, .weight-card p {
                 font-size: 16px;
             }
         }
@@ -488,7 +520,26 @@
             </div>
         </div>
         
-        <!-- Section 3: Cost Calculation and Analysis -->
+        <!-- Section 3: Total Weight Summary -->
+        <div class="section">
+            <h2>Recipe Weight Summary</h2>
+            <div class="weight-summary">
+                <div class="weight-card total-weight">
+                    <h3>Total Recipe Weight</h3>
+                    <p id="total-recipe-weight">0 g</p>
+                </div>
+                <div class="weight-card">
+                    <h3>Number of Servings</h3>
+                    <p id="number-of-servings">0</p>
+                </div>
+                <div class="weight-card">
+                    <h3>Weight Per Serving</h3>
+                    <p id="weight-per-serving">0 g</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Section 4: Cost Calculation and Analysis -->
         <div class="section">
             <h2>Cost Analysis</h2>
             
@@ -528,7 +579,7 @@
             </div>
         </div>
         
-        <!-- Section 4: Visualization -->
+        <!-- Section 5: Visualization -->
         <div class="section">
             <h2>Recipe Breakdown</h2>
             
@@ -542,7 +593,7 @@
             </div>
         </div>
         
-        <!-- Section 5: Export -->
+        <!-- Section 6: Export -->
         <div class="section">
             <h2>Export Recipe</h2>
             <button id="export-pdf-btn" class="btn-secondary">Download PDF Report</button>
@@ -722,11 +773,18 @@
             
             priceInput.addEventListener('input', updatePerGramPrice);
             weightInput.addEventListener('input', updatePerGramPrice);
-            requiredWeightInput.addEventListener('input', updateIngredientCost);
+            requiredWeightInput.addEventListener('input', function() {
+                updateIngredientCost.call(this);
+                updateWeightSummary();
+            });
             deleteBtn.addEventListener('click', function() {
                 newRow.remove();
                 calculateCosts();
+                updateWeightSummary();
             });
+            
+            // Update weight summary
+            updateWeightSummary();
         }
 
         // Update categories dropdown
@@ -824,14 +882,21 @@
             
             priceInput.addEventListener('input', updatePerGramPrice);
             weightInput.addEventListener('input', updatePerGramPrice);
-            requiredWeightInput.addEventListener('input', updateIngredientCost);
+            requiredWeightInput.addEventListener('input', function() {
+                updateIngredientCost.call(this);
+                updateWeightSummary();
+            });
             deleteBtn.addEventListener('click', function() {
                 newRow.remove();
                 calculateCosts();
+                updateWeightSummary();
             });
             
             // Reset the select
             ingredientSelect.selectedIndex = 0;
+            
+            // Update weight summary
+            updateWeightSummary();
         }
 
         // Update per gram price when price or package weight changes
@@ -864,6 +929,29 @@
             
             const cost = perGramPrice * requiredWeight;
             costCell.textContent = `PKR ${cost.toFixed(2)}`;
+        }
+
+        // Update weight summary
+        function updateWeightSummary() {
+            const rows = document.querySelectorAll('#selected-ingredients tbody tr');
+            let totalWeight = 0;
+            
+            // Calculate total weight
+            rows.forEach(row => {
+                const weight = parseFloat(row.querySelector('.required-weight').value) || 0;
+                totalWeight += weight;
+            });
+            
+            // Update total recipe weight
+            document.getElementById('total-recipe-weight').textContent = `${totalWeight.toFixed(0)} g`;
+            
+            // Calculate number of servings and weight per serving
+            const servingGrams = parseFloat(document.getElementById('serving-grams').value) || 0;
+            const numberOfServings = servingGrams > 0 ? Math.floor(totalWeight / servingGrams) : 0;
+            const weightPerServing = numberOfServings > 0 ? (totalWeight / numberOfServings).toFixed(1) : 0;
+            
+            document.getElementById('number-of-servings').textContent = numberOfServings;
+            document.getElementById('weight-per-serving').textContent = `${weightPerServing} g`;
         }
 
         // Toggle new ingredient form
@@ -938,6 +1026,9 @@
             
             document.getElementById('selling-price').textContent = `PKR ${sellingPrice.toFixed(2)}`;
             document.getElementById('profit-per-serving').textContent = `PKR ${profitPerServing.toFixed(2)}`;
+            
+            // Update weight summary
+            updateWeightSummary();
             
             // Update charts
             updateCharts();
@@ -1147,9 +1238,13 @@
             doc.setFontSize(12);
             doc.text(`Serving Size: ${servingGrams} grams`, 20, 35);
             
+            // Total weight
+            const totalWeight = document.getElementById('total-recipe-weight').textContent;
+            doc.text(`Total Recipe Weight: ${totalWeight}`, 20, 45);
+            
             // Ingredients table
-            doc.text('Ingredients:', 20, 50);
-            let yPosition = 60;
+            doc.text('Ingredients:', 20, 60);
+            let yPosition = 70;
             
             const rows = document.querySelectorAll('#selected-ingredients tbody tr');
             rows.forEach((row, index) => {

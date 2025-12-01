@@ -319,6 +319,20 @@
             border-left: 4px solid var(--accent);
         }
         
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
         /* Responsive Design */
         @media (max-width: 768px) {
             .container {
@@ -396,23 +410,6 @@
                 font-size: 16px;
             }
         }
-        
-        /* Print Styles */
-        @media print {
-            body {
-                background: white;
-                padding: 0;
-            }
-            
-            .container {
-                box-shadow: none;
-                padding: 0;
-            }
-            
-            button, .csv-import-section, .search-container {
-                display: none;
-            }
-        }
     </style>
 </head>
 <body>
@@ -428,7 +425,7 @@
             </div>
             <div class="form-group">
                 <label for="serving-grams">Serving Size (grams)</label>
-                <input type="number" id="serving-grams" placeholder="Enter serving size in grams">
+                <input type="number" id="serving-grams" placeholder="Enter serving size in grams" value="100">
             </div>
         </div>
         
@@ -437,10 +434,17 @@
             <h2>Ingredients</h2>
             
             <div class="form-group">
+                <button id="load-data-btn" class="btn-success">
+                    <span id="load-text">Load Latest Prices from Google Sheets</span>
+                    <span id="load-spinner" class="loading hidden"></span>
+                </button>
+                <div id="load-status" style="margin-top: 10px; font-size: 14px;"></div>
+            </div>
+            
+            <div class="form-group">
                 <label for="category-filter">Filter by Category</label>
                 <select id="category-filter">
                     <option value="all">All Categories</option>
-                    <!-- Categories will be populated by JavaScript -->
                 </select>
             </div>
             
@@ -455,50 +459,13 @@
                 <label for="ingredient-select">Select Ingredient</label>
                 <select id="ingredient-select">
                     <option value="">-- Select an ingredient --</option>
-                    <!-- Ingredients will be populated by JavaScript -->
                 </select>
             </div>
             
             <div class="form-group">
                 <button id="add-ingredient-btn" class="btn-secondary">Add Selected Ingredient</button>
             </div>
-            
-            <div class="form-group">
-                <button id="toggle-new-ingredient-form">+ Add New Ingredient</button>
-            </div>
-            
-            <!-- New Ingredient Form -->
-            <div id="new-ingredient-form" class="new-ingredient-form hidden">
-                <h3>Add New Ingredient</h3>
-                <div class="new-ingredient-row">
-                    <input type="text" id="new-ingredient-name" placeholder="Ingredient Name">
-                    <input type="number" id="new-ingredient-price" placeholder="Purchase Price (PKR)">
-                    <input type="number" id="new-ingredient-weight" placeholder="Package Weight (g)">
-                </div>
-                <div class="new-ingredient-row">
-                    <input type="text" id="new-ingredient-category" placeholder="Category">
-                    <button id="save-new-ingredient" class="btn-success">Save New Ingredient</button>
-                </div>
-            </div>
-            
-            <!-- CSV Import Section -->
-            <div class="csv-import-section">
-                <h3>Import Ingredients from CSV</h3>
-                <div class="form-group">
-                    <label for="csv-file">Select CSV File</label>
-                    <input type="file" id="csv-file" accept=".csv">
-                </div>
-                <div class="form-group">
-                    <button id="import-csv-btn" class="btn-warning">Import CSV Data</button>
-                </div>
-                <div id="csv-preview" class="csv-preview hidden">
-                    <h4>CSV Preview</h4>
-                    <table id="preview-table">
-                        <!-- Preview will be populated by JavaScript -->
-                    </table>
-                </div>
-            </div>
-            
+
             <!-- Selected Ingredients Table -->
             <div style="overflow-x: auto;">
                 <table id="selected-ingredients">
@@ -514,7 +481,6 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <!-- Selected ingredients will be added here -->
                     </tbody>
                 </table>
             </div>
@@ -573,10 +539,6 @@
                     <p id="profit-per-serving">PKR 0.00</p>
                 </div>
             </div>
-            
-            <div class="form-group">
-                <button id="calculate-btn" class="btn-success">Calculate Costs</button>
-            </div>
         </div>
         
         <!-- Section 5: Visualization -->
@@ -597,93 +559,28 @@
         <div class="section">
             <h2>Export Recipe</h2>
             <button id="export-pdf-btn" class="btn-secondary">Download PDF Report</button>
-            <div class="form-group" style="margin-top: 15px;">
-                <button id="export-csv-btn" class="btn-secondary">Export Ingredients to CSV</button>
-            </div>
         </div>
     </div>
 
     <script>
-        // Ingredient data from the CSV
-        let ingredientData = [
-            {ingredient: "flour", purchasePrice: 6400, packageWeight: 50000, category: "Dry Goods"},
-            {ingredient: "semolina", purchasePrice: 180, packageWeight: 1000, category: "Dry Goods"},
-            {ingredient: "granulated sugar", purchasePrice: 10200, packageWeight: 50000, category: "Sweeteners"},
-            {ingredient: "packet brown sugar", purchasePrice: 450, packageWeight: 800, category: "Sweeteners"},
-            {ingredient: "open brown sugar", purchasePrice: 250, packageWeight: 1000, category: "Sweeteners"},
-            {ingredient: "open icing sugar", purchasePrice: 200, packageWeight: 1000, category: "Sweeteners"},
-            {ingredient: "packet icing sugar", purchasePrice: 490, packageWeight: 800, category: "Sweeteners"},
-            {ingredient: "honey", purchasePrice: 2500, packageWeight: 1000, category: "Sweeteners"},
-            {ingredient: "glucose", purchasePrice: 450, packageWeight: 1000, category: "Sweeteners"},
-            {ingredient: "blanco butter", purchasePrice: 950, packageWeight: 1000, category: "Dairy"},
-            {ingredient: "faisalabad butter", purchasePrice: 1680, packageWeight: 1000, category: "Dairy"},
-            {ingredient: "fauji oil", purchasePrice: 7650, packageWeight: 16000, category: "Fats & Oils"},
-            {ingredient: "meezan oil", purchasePrice: 7800, packageWeight: 16000, category: "Fats & Oils"},
-            {ingredient: "sofi ghee", purchasePrice: 9300, packageWeight: 16000, category: "Fats & Oils"},
-            {ingredient: "khoya", purchasePrice: 1450, packageWeight: 1000, category: "Dairy"},
-            {ingredient: "olpers milk", purchasePrice: 4000, packageWeight: 12000, category: "Dairy"},
-            {ingredient: "milkfield milk", purchasePrice: 3360, packageWeight: 12000, category: "Dairy"},
-            {ingredient: "asli milk", purchasePrice: 3300, packageWeight: 12000, category: "Dairy"},
-            {ingredient: "condensed milk", purchasePrice: 12720, packageWeight: 24000, category: "Dairy"},
-            {ingredient: "evaporated", purchasePrice: 16800, packageWeight: 18720, category: "Dairy"},
-            {ingredient: "master-chef whipping cream", purchasePrice: 350, packageWeight: 350, category: "Dairy"},
-            {ingredient: "youngs whipping cream", purchasePrice: 540, packageWeight: 550, category: "Dairy"},
-            {ingredient: "whipy whip whipping cream", purchasePrice: 7600, packageWeight: 12000, category: "Dairy"},
-            {ingredient: "silver whipping cream", purchasePrice: 18000, packageWeight: 12000, category: "Dairy"},
-            {ingredient: "blanco whipping cream", purchasePrice: 6600, packageWeight: 12000, category: "Dairy"},
-            {ingredient: "milkfield heavy-cream", purchasePrice: 4600, packageWeight: 4800, category: "Dairy"},
-            {ingredient: "creamym heavy-cream", purchasePrice: 3800, packageWeight: 4800, category: "Dairy"},
-            {ingredient: "omang dobala heavy-cream", purchasePrice: 3700, packageWeight: 4800, category: "Dairy"},
-            {ingredient: "yougurt", purchasePrice: 260, packageWeight: 1000, category: "Dairy"},
-            {ingredient: "whole eggs", purchasePrice: 10200, packageWeight: 360, category: "Eggs"},
-            {ingredient: "eggs yolk", purchasePrice: 10200, packageWeight: 360, category: "Eggs"},
-            {ingredient: "eggs white", purchasePrice: 10200, packageWeight: 360, category: "Eggs"},
-            {ingredient: "baking powder", purchasePrice: 1800, packageWeight: 4400, category: "Leavening Agents"},
-            {ingredient: "baking soda", purchasePrice: 200, packageWeight: 1000, category: "Leavening Agents"},
-            {ingredient: "yeast", purchasePrice: 1600, packageWeight: 500, category: "Leavening Agents"},
-            {ingredient: "vanilla essence", purchasePrice: 1200, packageWeight: 900, category: "Flavorings"},
-            {ingredient: "vanilla powder", purchasePrice: 600, packageWeight: 500, category: "Flavorings"},
-            {ingredient: "cocoa powder", purchasePrice: 26500, packageWeight: 25000, category: "Flavorings"},
-            {ingredient: "cinnamon", purchasePrice: null, packageWeight: null, category: "Spices"},
-            {ingredient: "nutmeg", purchasePrice: null, packageWeight: null, category: "Spices"},
-            {ingredient: "salt", purchasePrice: 50, packageWeight: 1000, category: "Seasonings"},
-            {ingredient: "youngs milky", purchasePrice: 12350, packageWeight: 10000, category: "Flavorings"},
-            {ingredient: "youngs hazelnut", purchasePrice: 9020, packageWeight: 6000, category: "Flavorings"},
-            {ingredient: "youngs cocoa powder", purchasePrice: null, packageWeight: null, category: "Flavorings"},
-            {ingredient: "youngs dark compound", purchasePrice: null, packageWeight: null, category: "Chocolate"},
-            {ingredient: "mocca dark compound", purchasePrice: 850, packageWeight: 1000, category: "Chocolate"},
-            {ingredient: "premium dark compound", purchasePrice: 850, packageWeight: 1000, category: "Chocolate"},
-            {ingredient: "walnuts", purchasePrice: 2000, packageWeight: 1000, category: "Nuts"},
-            {ingredient: "almonds", purchasePrice: 3000, packageWeight: 1000, category: "Nuts"},
-            {ingredient: "pistachio nuts", purchasePrice: 4000, packageWeight: 1000, category: "Nuts"},
-            {ingredient: "vinegar", purchasePrice: 900, packageWeight: 5000, category: "Acids"},
-            {ingredient: "orange oil", purchasePrice: 880, packageWeight: 400, category: "Flavorings"},
-            {ingredient: "coconut oil", purchasePrice: null, packageWeight: null, category: "Fats & Oils"},
-            {ingredient: "lafruta raspberry filling", purchasePrice: 18000, packageWeight: 60000, category: "Fillings"},
-            {ingredient: "lotus filling", purchasePrice: 9300, packageWeight: 30000, category: "Fillings"},
-            {ingredient: "millionare caramel filling", purchasePrice: 25600, packageWeight: 12500, category: "Fillings"},
-            {ingredient: "pistachio creamy 26%", purchasePrice: 14250, packageWeight: 3000, category: "Fillings"},
-            {ingredient: "kunafa roasted", purchasePrice: 2000, packageWeight: 1000, category: "Dry Goods"}
-        ];
+        // Ingredient data - will be populated from Google Sheets
+        let ingredientData = [];
+        
+        // Google Sheets URL - Using the correct CSV export URL
+        const GOOGLE_SHEETS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQOjljUlumLK8Xl2y20G0hMe-KoCFNsxDnof4hkSZitNAjbcFOWxK4ngFqDwloI_6uMAWRCZLLyorjx/pub?gid=0&single=true&output=csv';
 
         // Initialize the application
         document.addEventListener('DOMContentLoaded', function() {
-            // Populate categories dropdown
-            updateCategories();
+            // Load data from Google Sheets on startup
+            loadDataFromGoogleSheets();
             
-            // Populate ingredients dropdown
-            populateIngredients();
-
             // Event listeners
+            document.getElementById('load-data-btn').addEventListener('click', loadDataFromGoogleSheets);
             document.getElementById('category-filter').addEventListener('change', populateIngredients);
             document.getElementById('add-ingredient-btn').addEventListener('click', addSelectedIngredient);
-            document.getElementById('toggle-new-ingredient-form').addEventListener('click', toggleNewIngredientForm);
-            document.getElementById('save-new-ingredient').addEventListener('click', saveNewIngredient);
-            document.getElementById('calculate-btn').addEventListener('click', calculateCosts);
             document.getElementById('export-pdf-btn').addEventListener('click', exportToPDF);
-            document.getElementById('export-csv-btn').addEventListener('click', exportToCSV);
-            document.getElementById('import-csv-btn').addEventListener('click', importCSV);
-            document.getElementById('csv-file').addEventListener('change', previewCSV);
+            document.getElementById('margin-percentage').addEventListener('input', calculateCosts);
+            document.getElementById('serving-grams').addEventListener('input', calculateCosts);
             
             // Search functionality
             document.getElementById('ingredient-search').addEventListener('input', handleSearch);
@@ -696,6 +593,244 @@
             // Initialize charts
             initializeCharts();
         });
+
+        // Load data from Google Sheets
+        async function loadDataFromGoogleSheets() {
+            const loadBtn = document.getElementById('load-data-btn');
+            const loadText = document.getElementById('load-text');
+            const loadSpinner = document.getElementById('load-spinner');
+            const statusDiv = document.getElementById('load-status');
+            
+            // Show loading state
+            loadText.textContent = 'Loading...';
+            loadSpinner.classList.remove('hidden');
+            loadBtn.disabled = true;
+            statusDiv.textContent = 'Fetching data from Google Sheets...';
+            statusDiv.style.color = 'var(--warning)';
+            
+            try {
+                // Add timestamp to avoid caching issues
+                const url = GOOGLE_SHEETS_URL + '&t=' + new Date().getTime();
+                console.log('Fetching from:', url);
+                
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const csvData = await response.text();
+                console.log('Raw CSV data:', csvData);
+                
+                if (!csvData || csvData.trim().length === 0) {
+                    throw new Error('No data received from Google Sheets');
+                }
+                
+                // Parse CSV data using a more robust method
+                const rows = parseCSV(csvData);
+                console.log('Parsed rows:', rows);
+                
+                if (rows.length === 0) {
+                    throw new Error('No valid data found in CSV');
+                }
+                
+                // Clear existing data
+                ingredientData = [];
+                
+                // Process each row
+                for (let i = 1; i < rows.length; i++) {
+                    const row = rows[i];
+                    
+                    // Skip empty rows or rows without enough data
+                    if (!row || row.length < 3) continue;
+                    
+                    const ingredient = (row[0] || '').trim();
+                    const purchasePrice = parseFloat((row[1] || '').replace(/[^\d.-]/g, '')) || null;
+                    const packageWeight = parseFloat((row[2] || '').replace(/[^\d.-]/g, '')) || null;
+                    
+                    // Skip if no ingredient name
+                    if (!ingredient) continue;
+                    
+                    // Determine category based on ingredient name
+                    const category = determineCategory(ingredient);
+                    
+                    ingredientData.push({
+                        ingredient: ingredient,
+                        purchasePrice: purchasePrice,
+                        packageWeight: packageWeight,
+                        category: category
+                    });
+                }
+                
+                console.log('Processed ingredients:', ingredientData);
+                
+                // Update the UI with new data
+                updateCategories();
+                populateIngredients();
+                
+                // Show success message
+                statusDiv.textContent = `✅ Successfully loaded ${ingredientData.length} ingredients!`;
+                statusDiv.style.color = 'var(--success)';
+                loadText.textContent = 'Refresh Prices from Google Sheets';
+                
+            } catch (error) {
+                console.error('Error loading data from Google Sheets:', error);
+                statusDiv.textContent = `❌ Error: ${error.message}. Using fallback data.`;
+                statusDiv.style.color = 'var(--danger)';
+                loadText.textContent = 'Retry Loading Data';
+                
+                // Load fallback data
+                loadFallbackData();
+            } finally {
+                // Hide loading state
+                loadSpinner.classList.add('hidden');
+                loadBtn.disabled = false;
+            }
+        }
+
+        // Robust CSV parsing function
+        function parseCSV(csvText) {
+            const rows = [];
+            let currentRow = [];
+            let inQuotes = false;
+            let currentValue = '';
+            
+            for (let i = 0; i < csvText.length; i++) {
+                const char = csvText[i];
+                const nextChar = csvText[i + 1];
+                
+                if (char === '"') {
+                    inQuotes = !inQuotes;
+                } else if (char === ',' && !inQuotes) {
+                    currentRow.push(currentValue.trim());
+                    currentValue = '';
+                } else if (char === '\n' && !inQuotes) {
+                    currentRow.push(currentValue.trim());
+                    rows.push(currentRow);
+                    currentRow = [];
+                    currentValue = '';
+                } else if (char === '\r' && nextChar === '\n' && !inQuotes) {
+                    // Handle Windows line endings
+                    currentRow.push(currentValue.trim());
+                    rows.push(currentRow);
+                    currentRow = [];
+                    currentValue = '';
+                    i++; // Skip the next character (\n)
+                } else {
+                    currentValue += char;
+                }
+            }
+            
+            // Add the last row
+            if (currentValue.trim() || currentRow.length > 0) {
+                currentRow.push(currentValue.trim());
+                rows.push(currentRow);
+            }
+            
+            return rows;
+        }
+
+        // Fallback data in case Google Sheets fails
+        function loadFallbackData() {
+            ingredientData = [
+                {ingredient: "flour", purchasePrice: 6400, packageWeight: 50000, category: "Dry Goods"},
+                {ingredient: "semolina", purchasePrice: 180, packageWeight: 1000, category: "Dry Goods"},
+                {ingredient: "granulated sugar", purchasePrice: 10200, packageWeight: 50000, category: "Sweeteners"},
+                {ingredient: "packet brown sugar", purchasePrice: 450, packageWeight: 800, category: "Sweeteners"},
+                {ingredient: "open brown sugar", purchasePrice: 250, packageWeight: 1000, category: "Sweeteners"},
+                {ingredient: "open icing sugar", purchasePrice: 200, packageWeight: 1000, category: "Sweeteners"},
+                {ingredient: "packet icing sugar", purchasePrice: 490, packageWeight: 800, category: "Sweeteners"},
+                {ingredient: "honey", purchasePrice: 2500, packageWeight: 1000, category: "Sweeteners"},
+                {ingredient: "glucose", purchasePrice: 450, packageWeight: 1000, category: "Sweeteners"},
+                {ingredient: "blanco butter", purchasePrice: 950, packageWeight: 1000, category: "Dairy"},
+                {ingredient: "faisalabad butter", purchasePrice: 1680, packageWeight: 1000, category: "Dairy"},
+                {ingredient: "fauji oil", purchasePrice: 7650, packageWeight: 16000, category: "Fats & Oils"},
+                {ingredient: "meezan oil", purchasePrice: 7800, packageWeight: 16000, category: "Fats & Oils"},
+                {ingredient: "sofi ghee", purchasePrice: 9300, packageWeight: 16000, category: "Fats & Oils"},
+                {ingredient: "khoya", purchasePrice: 1450, packageWeight: 1000, category: "Dairy"},
+                {ingredient: "olpers milk", purchasePrice: 4000, packageWeight: 12000, category: "Dairy"},
+                {ingredient: "milkfield milk", purchasePrice: 3360, packageWeight: 12000, category: "Dairy"},
+                {ingredient: "asli milk", purchasePrice: 3300, packageWeight: 12000, category: "Dairy"},
+                {ingredient: "condensed milk", purchasePrice: 12720, packageWeight: 24000, category: "Dairy"},
+                {ingredient: "evaporated", purchasePrice: 16800, packageWeight: 18720, category: "Dairy"},
+                {ingredient: "master-chef whipping cream", purchasePrice: 350, packageWeight: 350, category: "Dairy"},
+                {ingredient: "youngs whipping cream", purchasePrice: 540, packageWeight: 550, category: "Dairy"},
+                {ingredient: "whipy whip whipping cream", purchasePrice: 7600, packageWeight: 12000, category: "Dairy"},
+                {ingredient: "silver whipping cream", purchasePrice: 18000, packageWeight: 12000, category: "Dairy"},
+                {ingredient: "blanco whipping cream", purchasePrice: 6600, packageWeight: 12000, category: "Dairy"},
+                {ingredient: "milkfield heavy-cream", purchasePrice: 4600, packageWeight: 4800, category: "Dairy"},
+                {ingredient: "creamym heavy-cream", purchasePrice: 3800, packageWeight: 4800, category: "Dairy"},
+                {ingredient: "omang dobala heavy-cream", purchasePrice: 3700, packageWeight: 4800, category: "Dairy"},
+                {ingredient: "yougurt", purchasePrice: 260, packageWeight: 1000, category: "Dairy"},
+                {ingredient: "whole eggs", purchasePrice: 10200, packageWeight: 360, category: "Eggs"},
+                {ingredient: "eggs yolk", purchasePrice: 10200, packageWeight: 360, category: "Eggs"},
+                {ingredient: "eggs white", purchasePrice: 10200, packageWeight: 360, category: "Eggs"},
+                {ingredient: "baking powder", purchasePrice: 1800, packageWeight: 4400, category: "Leavening Agents"},
+                {ingredient: "baking soda", purchasePrice: 200, packageWeight: 1000, category: "Leavening Agents"},
+                {ingredient: "yeast", purchasePrice: 1600, packageWeight: 500, category: "Leavening Agents"},
+                {ingredient: "vanilla essence", purchasePrice: 1200, packageWeight: 900, category: "Flavorings"},
+                {ingredient: "vanilla powder", purchasePrice: 600, packageWeight: 500, category: "Flavorings"},
+                {ingredient: "cocoa powder", purchasePrice: 26500, packageWeight: 25000, category: "Flavorings"},
+                {ingredient: "cinnamon", purchasePrice: null, packageWeight: null, category: "Spices"},
+                {ingredient: "nutmeg", purchasePrice: null, packageWeight: null, category: "Spices"},
+                {ingredient: "salt", purchasePrice: 50, packageWeight: 1000, category: "Seasonings"},
+                {ingredient: "youngs milky", purchasePrice: 12350, packageWeight: 10000, category: "Flavorings"},
+                {ingredient: "youngs hazelnut", purchasePrice: 9020, packageWeight: 6000, category: "Flavorings"},
+                {ingredient: "youngs cocoa powder", purchasePrice: null, packageWeight: null, category: "Flavorings"},
+                {ingredient: "youngs dark compound", purchasePrice: null, packageWeight: null, category: "Chocolate"},
+                {ingredient: "mocca dark compound", purchasePrice: 850, packageWeight: 1000, category: "Chocolate"},
+                {ingredient: "premium dark compound", purchasePrice: 850, packageWeight: 1000, category: "Chocolate"},
+                {ingredient: "walnuts", purchasePrice: 2000, packageWeight: 1000, category: "Nuts"},
+                {ingredient: "almonds", purchasePrice: 3000, packageWeight: 1000, category: "Nuts"},
+                {ingredient: "pistachio nuts", purchasePrice: 4000, packageWeight: 1000, category: "Nuts"},
+                {ingredient: "vinegar", purchasePrice: 900, packageWeight: 5000, category: "Acids"},
+                {ingredient: "orange oil", purchasePrice: 880, packageWeight: 400, category: "Flavorings"},
+                {ingredient: "coconut oil", purchasePrice: null, packageWeight: null, category: "Fats & Oils"},
+                {ingredient: "lafruta raspberry filling", purchasePrice: 18000, packageWeight: 60000, category: "Fillings"},
+                {ingredient: "lotus filling", purchasePrice: 9300, packageWeight: 30000, category: "Fillings"},
+                {ingredient: "millionare caramel filling", purchasePrice: 25600, packageWeight: 12500, category: "Fillings"},
+                {ingredient: "pistachio creamy 26%", purchasePrice: 14250, packageWeight: 3000, category: "Fillings"},
+                {ingredient: "kunafa roasted", purchasePrice: 2000, packageWeight: 1000, category: "Dry Goods"}
+            ];
+            
+            updateCategories();
+            populateIngredients();
+        }
+
+        // Determine category based on ingredient name
+        function determineCategory(ingredientName) {
+            const name = ingredientName.toLowerCase();
+            
+            if (name.includes('flour') || name.includes('semolina') || name.includes('kunafa')) {
+                return 'Dry Goods';
+            } else if (name.includes('sugar') || name.includes('honey') || name.includes('glucose')) {
+                return 'Sweeteners';
+            } else if (name.includes('butter') || name.includes('milk') || name.includes('cream') || name.includes('yogurt') || name.includes('khoya')) {
+                return 'Dairy';
+            } else if (name.includes('oil') || name.includes('ghee')) {
+                return 'Fats & Oils';
+            } else if (name.includes('egg')) {
+                return 'Eggs';
+            } else if (name.includes('baking') || name.includes('yeast')) {
+                return 'Leavening Agents';
+            } else if (name.includes('vanilla') || name.includes('cocoa') || name.includes('cinnamon') || name.includes('nutmeg') || name.includes('orange')) {
+                return 'Flavorings';
+            } else if (name.includes('salt')) {
+                return 'Seasonings';
+            } else if (name.includes('walnut') || name.includes('almond') || name.includes('pistachio')) {
+                return 'Nuts';
+            } else if (name.includes('vinegar')) {
+                return 'Acids';
+            } else if (name.includes('filling')) {
+                return 'Fillings';
+            } else if (name.includes('compound')) {
+                return 'Chocolate';
+            } else if (name.includes('spice')) {
+                return 'Spices';
+            }
+            
+            return 'Other';
+        }
 
         // Search functionality
         function handleSearch(e) {
@@ -720,9 +855,7 @@
                     resultItem.className = 'search-result-item';
                     resultItem.textContent = ingredient.ingredient;
                     resultItem.addEventListener('click', () => {
-                        // Add the selected ingredient to the recipe
                         addIngredientFromSearch(ingredient);
-                        // Clear search and hide results
                         document.getElementById('ingredient-search').value = '';
                         searchResults.classList.add('hidden');
                     });
@@ -737,7 +870,6 @@
 
         // Add ingredient from search results
         function addIngredientFromSearch(ingredient) {
-            // Check if ingredient already exists in the table
             const existingRows = document.querySelectorAll('#selected-ingredients tbody tr');
             for (let row of existingRows) {
                 if (row.cells[0].textContent === ingredient.ingredient) {
@@ -746,11 +878,9 @@
                 }
             }
             
-            // Calculate per gram price
-            const perGramPrice = ingredient.packageWeight > 0 ? 
+            const perGramPrice = ingredient.packageWeight > 0 && ingredient.purchasePrice > 0 ? 
                 (ingredient.purchasePrice / ingredient.packageWeight).toFixed(4) : 0;
             
-            // Add row to table
             const tbody = document.querySelector('#selected-ingredients tbody');
             const newRow = document.createElement('tr');
             newRow.innerHTML = `
@@ -758,33 +888,36 @@
                 <td><input type="number" value="${ingredient.purchasePrice || 0}" class="price-input"></td>
                 <td><input type="number" value="${ingredient.packageWeight || 0}" class="weight-input"></td>
                 <td class="per-gram-price">${perGramPrice}</td>
-                <td><input type="number" class="required-weight" placeholder="Enter weight in grams"></td>
+                <td><input type="number" class="required-weight" placeholder="Enter weight in grams" value="0"></td>
                 <td class="ingredient-cost">PKR 0.00</td>
                 <td><button class="delete-btn">×</button></td>
             `;
             
             tbody.appendChild(newRow);
             
-            // Add event listeners to the new row
             const priceInput = newRow.querySelector('.price-input');
             const weightInput = newRow.querySelector('.weight-input');
             const requiredWeightInput = newRow.querySelector('.required-weight');
             const deleteBtn = newRow.querySelector('.delete-btn');
             
-            priceInput.addEventListener('input', updatePerGramPrice);
-            weightInput.addEventListener('input', updatePerGramPrice);
+            priceInput.addEventListener('input', function() {
+                updatePerGramPrice.call(this);
+                calculateCosts();
+            });
+            weightInput.addEventListener('input', function() {
+                updatePerGramPrice.call(this);
+                calculateCosts();
+            });
             requiredWeightInput.addEventListener('input', function() {
                 updateIngredientCost.call(this);
-                updateWeightSummary();
+                calculateCosts();
             });
             deleteBtn.addEventListener('click', function() {
                 newRow.remove();
                 calculateCosts();
-                updateWeightSummary();
             });
             
-            // Update weight summary
-            updateWeightSummary();
+            calculateCosts();
         }
 
         // Update categories dropdown
@@ -792,7 +925,6 @@
             const categories = [...new Set(ingredientData.map(item => item.category))].filter(cat => cat);
             const categoryFilter = document.getElementById('category-filter');
             
-            // Clear existing options except the first one
             while (categoryFilter.options.length > 1) {
                 categoryFilter.remove(1);
             }
@@ -810,17 +942,14 @@
             const categoryFilter = document.getElementById('category-filter').value;
             const ingredientSelect = document.getElementById('ingredient-select');
             
-            // Clear existing options except the first one
             while (ingredientSelect.options.length > 1) {
                 ingredientSelect.remove(1);
             }
             
-            // Filter ingredients by category
             const filteredIngredients = categoryFilter === 'all' 
                 ? ingredientData 
                 : ingredientData.filter(item => item.category === categoryFilter);
             
-            // Add filtered ingredients to dropdown
             filteredIngredients.forEach(ingredient => {
                 if (ingredient.ingredient) {
                     const option = document.createElement('option');
@@ -847,7 +976,6 @@
             const purchasePrice = selectedOption.dataset.price || 0;
             const packageWeight = selectedOption.dataset.weight || 0;
             
-            // Check if ingredient already exists in the table
             const existingRows = document.querySelectorAll('#selected-ingredients tbody tr');
             for (let row of existingRows) {
                 if (row.cells[0].textContent === ingredientName) {
@@ -856,10 +984,8 @@
                 }
             }
             
-            // Calculate per gram price
-            const perGramPrice = packageWeight > 0 ? (purchasePrice / packageWeight).toFixed(4) : 0;
+            const perGramPrice = packageWeight > 0 && purchasePrice > 0 ? (purchasePrice / packageWeight).toFixed(4) : 0;
             
-            // Add row to table
             const tbody = document.querySelector('#selected-ingredients tbody');
             const newRow = document.createElement('tr');
             newRow.innerHTML = `
@@ -867,53 +993,53 @@
                 <td><input type="number" value="${purchasePrice}" class="price-input"></td>
                 <td><input type="number" value="${packageWeight}" class="weight-input"></td>
                 <td class="per-gram-price">${perGramPrice}</td>
-                <td><input type="number" class="required-weight" placeholder="Enter weight in grams"></td>
+                <td><input type="number" class="required-weight" placeholder="Enter weight in grams" value="0"></td>
                 <td class="ingredient-cost">PKR 0.00</td>
                 <td><button class="delete-btn">×</button></td>
             `;
             
             tbody.appendChild(newRow);
             
-            // Add event listeners to the new row
             const priceInput = newRow.querySelector('.price-input');
             const weightInput = newRow.querySelector('.weight-input');
             const requiredWeightInput = newRow.querySelector('.required-weight');
             const deleteBtn = newRow.querySelector('.delete-btn');
             
-            priceInput.addEventListener('input', updatePerGramPrice);
-            weightInput.addEventListener('input', updatePerGramPrice);
+            priceInput.addEventListener('input', function() {
+                updatePerGramPrice.call(this);
+                calculateCosts();
+            });
+            weightInput.addEventListener('input', function() {
+                updatePerGramPrice.call(this);
+                calculateCosts();
+            });
             requiredWeightInput.addEventListener('input', function() {
                 updateIngredientCost.call(this);
-                updateWeightSummary();
+                calculateCosts();
             });
             deleteBtn.addEventListener('click', function() {
                 newRow.remove();
                 calculateCosts();
-                updateWeightSummary();
             });
             
-            // Reset the select
             ingredientSelect.selectedIndex = 0;
-            
-            // Update weight summary
-            updateWeightSummary();
+            calculateCosts();
         }
 
         // Update per gram price when price or package weight changes
-        function updatePerGramPrice(event) {
-            const row = event.target.closest('tr');
+        function updatePerGramPrice() {
+            const row = this.closest('tr');
             const price = parseFloat(row.querySelector('.price-input').value) || 0;
             const weight = parseFloat(row.querySelector('.weight-input').value) || 0;
             const perGramCell = row.querySelector('.per-gram-price');
             
-            if (weight > 0) {
+            if (weight > 0 && price > 0) {
                 const perGramPrice = (price / weight).toFixed(4);
                 perGramCell.textContent = perGramPrice;
             } else {
                 perGramCell.textContent = '0';
             }
             
-            // Also update the ingredient cost if required weight is set
             const requiredWeightInput = row.querySelector('.required-weight');
             if (requiredWeightInput.value) {
                 updateIngredientCost.call(requiredWeightInput);
@@ -931,76 +1057,12 @@
             costCell.textContent = `PKR ${cost.toFixed(2)}`;
         }
 
-        // Update weight summary
-        function updateWeightSummary() {
-            const rows = document.querySelectorAll('#selected-ingredients tbody tr');
-            let totalWeight = 0;
-            
-            // Calculate total weight
-            rows.forEach(row => {
-                const weight = parseFloat(row.querySelector('.required-weight').value) || 0;
-                totalWeight += weight;
-            });
-            
-            // Update total recipe weight
-            document.getElementById('total-recipe-weight').textContent = `${totalWeight.toFixed(0)} g`;
-            
-            // Calculate number of servings and weight per serving
-            const servingGrams = parseFloat(document.getElementById('serving-grams').value) || 0;
-            const numberOfServings = servingGrams > 0 ? Math.floor(totalWeight / servingGrams) : 0;
-            const weightPerServing = numberOfServings > 0 ? (totalWeight / numberOfServings).toFixed(1) : 0;
-            
-            document.getElementById('number-of-servings').textContent = numberOfServings;
-            document.getElementById('weight-per-serving').textContent = `${weightPerServing} g`;
-        }
-
-        // Toggle new ingredient form
-        function toggleNewIngredientForm() {
-            const form = document.getElementById('new-ingredient-form');
-            form.classList.toggle('hidden');
-        }
-
-        // Save new ingredient
-        function saveNewIngredient() {
-            const name = document.getElementById('new-ingredient-name').value;
-            const price = parseFloat(document.getElementById('new-ingredient-price').value) || 0;
-            const weight = parseFloat(document.getElementById('new-ingredient-weight').value) || 0;
-            const category = document.getElementById('new-ingredient-category').value;
-            
-            if (!name) {
-                alert('Please enter an ingredient name');
-                return;
-            }
-            
-            // Add to ingredient data
-            ingredientData.push({
-                ingredient: name,
-                purchasePrice: price,
-                packageWeight: weight,
-                category: category || 'Other'
-            });
-            
-            // Update categories and repopulate ingredients dropdown
-            updateCategories();
-            populateIngredients();
-            
-            // Reset form and hide it
-            document.getElementById('new-ingredient-name').value = '';
-            document.getElementById('new-ingredient-price').value = '';
-            document.getElementById('new-ingredient-weight').value = '';
-            document.getElementById('new-ingredient-category').value = '';
-            document.getElementById('new-ingredient-form').classList.add('hidden');
-            
-            alert('New ingredient added successfully!');
-        }
-
-        // Calculate all costs
+        // Calculate all costs automatically
         function calculateCosts() {
             const rows = document.querySelectorAll('#selected-ingredients tbody tr');
             let totalCost = 0;
             let totalWeight = 0;
             
-            // Calculate total cost and weight
             rows.forEach(row => {
                 const cost = parseFloat(row.querySelector('.ingredient-cost').textContent.replace('PKR ', '')) || 0;
                 const weight = parseFloat(row.querySelector('.required-weight').value) || 0;
@@ -1009,7 +1071,6 @@
                 totalWeight += weight;
             });
             
-            // Update summary cards
             document.getElementById('total-cost').textContent = `PKR ${totalCost.toFixed(2)}`;
             
             const perGramCost = totalWeight > 0 ? totalCost / totalWeight : 0;
@@ -1019,7 +1080,6 @@
             const perServingCost = servingGrams > 0 ? perGramCost * servingGrams : 0;
             document.getElementById('per-serving-cost').textContent = `PKR ${perServingCost.toFixed(2)}`;
             
-            // Calculate selling price and profit
             const marginPercentage = parseFloat(document.getElementById('margin-percentage').value) || 0;
             const sellingPrice = perServingCost * (1 + marginPercentage / 100);
             const profitPerServing = sellingPrice - perServingCost;
@@ -1027,11 +1087,19 @@
             document.getElementById('selling-price').textContent = `PKR ${sellingPrice.toFixed(2)}`;
             document.getElementById('profit-per-serving').textContent = `PKR ${profitPerServing.toFixed(2)}`;
             
-            // Update weight summary
-            updateWeightSummary();
-            
-            // Update charts
+            updateWeightSummary(totalWeight, servingGrams);
             updateCharts();
+        }
+
+        // Update weight summary
+        function updateWeightSummary(totalWeight, servingGrams) {
+            document.getElementById('total-recipe-weight').textContent = `${totalWeight.toFixed(0)} g`;
+            
+            const numberOfServings = servingGrams > 0 ? Math.floor(totalWeight / servingGrams) : 0;
+            const weightPerServing = numberOfServings > 0 ? (totalWeight / numberOfServings).toFixed(1) : 0;
+            
+            document.getElementById('number-of-servings').textContent = numberOfServings;
+            document.getElementById('weight-per-serving').textContent = `${weightPerServing} g`;
         }
 
         // Initialize charts
@@ -1125,124 +1193,22 @@
             window.weightChart.update();
         }
 
-        // Preview CSV file before import
-        function previewCSV(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-            
-            Papa.parse(file, {
-                header: true,
-                complete: function(results) {
-                    const previewDiv = document.getElementById('csv-preview');
-                    const previewTable = document.getElementById('preview-table');
-                    
-                    // Clear previous preview
-                    previewTable.innerHTML = '';
-                    
-                    if (results.data.length === 0) {
-                        previewDiv.classList.add('hidden');
-                        return;
-                    }
-                    
-                    // Create table header
-                    const headerRow = document.createElement('tr');
-                    Object.keys(results.data[0]).forEach(key => {
-                        const th = document.createElement('th');
-                        th.textContent = key;
-                        headerRow.appendChild(th);
-                    });
-                    previewTable.appendChild(headerRow);
-                    
-                    // Create table rows with data
-                    results.data.slice(0, 5).forEach(row => { // Show first 5 rows only
-                        const tr = document.createElement('tr');
-                        Object.values(row).forEach(value => {
-                            const td = document.createElement('td');
-                            td.textContent = value;
-                            tr.appendChild(td);
-                        });
-                        previewTable.appendChild(tr);
-                    });
-                    
-                    previewDiv.classList.remove('hidden');
-                },
-                error: function(error) {
-                    console.error('CSV parsing error:', error);
-                    alert('Error parsing CSV file. Please check the format.');
-                }
-            });
-        }
-
-        // Import CSV data
-        function importCSV() {
-            const fileInput = document.getElementById('csv-file');
-            const file = fileInput.files[0];
-            
-            if (!file) {
-                alert('Please select a CSV file first');
-                return;
-            }
-            
-            Papa.parse(file, {
-                header: true,
-                complete: function(results) {
-                    if (results.data.length === 0) {
-                        alert('No data found in CSV file');
-                        return;
-                    }
-                    
-                    // Clear existing ingredient data
-                    ingredientData = [];
-                    
-                    // Process each row
-                    results.data.forEach(row => {
-                        if (row.ingredient && row.ingredient.trim() !== '') {
-                            ingredientData.push({
-                                ingredient: row.ingredient.trim(),
-                                purchasePrice: parseFloat(row['purchase price']) || null,
-                                packageWeight: parseFloat(row['package weight']) || null,
-                                category: row.category || 'Other'
-                            });
-                        }
-                    });
-                    
-                    // Update the UI with new data
-                    updateCategories();
-                    populateIngredients();
-                    
-                    // Reset file input and hide preview
-                    fileInput.value = '';
-                    document.getElementById('csv-preview').classList.add('hidden');
-                    
-                    alert(`Successfully imported ${ingredientData.length} ingredients from CSV!`);
-                },
-                error: function(error) {
-                    console.error('CSV parsing error:', error);
-                    alert('Error parsing CSV file. Please check the format.');
-                }
-            });
-        }
-
         // Export to PDF
         function exportToPDF() {
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
             
-            // Recipe name
             const recipeName = document.getElementById('recipe-name').value || 'Unnamed Recipe';
             doc.setFontSize(20);
             doc.text(recipeName, 20, 20);
             
-            // Serving size
             const servingGrams = document.getElementById('serving-grams').value || 'N/A';
             doc.setFontSize(12);
             doc.text(`Serving Size: ${servingGrams} grams`, 20, 35);
             
-            // Total weight
             const totalWeight = document.getElementById('total-recipe-weight').textContent;
             doc.text(`Total Recipe Weight: ${totalWeight}`, 20, 45);
             
-            // Ingredients table
             doc.text('Ingredients:', 20, 60);
             let yPosition = 70;
             
@@ -1267,7 +1233,6 @@
                 yPosition += 20;
             });
             
-            // Cost summary
             yPosition += 10;
             if (yPosition > 250) {
                 doc.addPage();
@@ -1289,29 +1254,7 @@
             doc.text(`Selling Price: ${sellingPrice}`, 30, yPosition + 15);
             doc.text(`Profit Per Serving: ${profit}`, 30, yPosition + 20);
             
-            // Save the PDF
             doc.save(`${recipeName.replace(/\s+/g, '_')}_cost_analysis.pdf`);
-        }
-
-        // Export ingredients to CSV
-        function exportToCSV() {
-            // Create CSV content
-            let csvContent = "ingredient,purchase price,package weight,category\n";
-            
-            ingredientData.forEach(item => {
-                csvContent += `"${item.ingredient}",${item.purchasePrice || ''},${item.packageWeight || ''},"${item.category || ''}"\n`;
-            });
-            
-            // Create download link
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.setAttribute('href', url);
-            link.setAttribute('download', 'ingredients_inventory.csv');
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
         }
     </script>
 </body>

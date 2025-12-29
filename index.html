@@ -829,109 +829,212 @@
             items[selectedResultIndex].scrollIntoView({ block: 'nearest' });
         }
 
-        // Select the currently highlighted search result
-        function selectSearchResult() {
-            if (selectedResultIndex >= 0 && selectedResultIndex < searchResults.length) {
-                const ingredient = searchResults[selectedResultIndex];
-                addIngredientFromSearch(ingredient);
+        // // Select the currently highlighted search result
+        // function selectSearchResult() {
+        //     if (selectedResultIndex >= 0 && selectedResultIndex < searchResults.length) {
+        //         const ingredient = searchResults[selectedResultIndex];
+        //         addIngredientFromSearch(ingredient);
                 
-                // Clear search
-                document.getElementById('ingredient-search').value = '';
-                document.getElementById('search-results').classList.add('hidden');
-                selectedResultIndex = -1;
-                searchResults = [];
-            }
-        }
+        //         // Clear search
+        //         document.getElementById('ingredient-search').value = '';
+        //         document.getElementById('search-results').classList.add('hidden');
+        //         selectedResultIndex = -1;
+        //         searchResults = [];
+        //     }
+        // }
+
+        // // Load data from Google Sheets
+        // async function loadDataFromGoogleSheets() {
+        //     const loadBtn = document.getElementById('load-data-btn');
+        //     const loadText = document.getElementById('load-text');
+        //     const loadSpinner = document.getElementById('load-spinner');
+        //     const statusDiv = document.getElementById('load-status');
+            
+        //     // Show loading state
+        //     loadText.textContent = 'Loading...';
+        //     loadSpinner.classList.remove('hidden');
+        //     loadBtn.disabled = true;
+        //     statusDiv.textContent = 'Fetching data from Google Sheets...';
+        //     statusDiv.style.color = 'var(--warning)';
+            
+        //     try {
+        //         // Add timestamp to avoid caching issues
+        //         const url = GOOGLE_SHEETS_URL + '&t=' + new Date().getTime();
+                
+        //         const response = await fetch(url);
+                
+        //         if (!response.ok) {
+        //             throw new Error(`HTTP error! status: ${response.status}`);
+        //         }
+                
+        //         const csvData = await response.text();
+                
+        //         if (!csvData || csvData.trim().length === 0) {
+        //             throw new Error('No data received from Google Sheets');
+        //         }
+                
+        //         // Parse CSV data
+        //         const rows = parseCSV(csvData);
+                
+        //         if (rows.length === 0) {
+        //             throw new Error('No valid data found in CSV');
+        //         }
+                
+        //         // Clear existing data
+        //         ingredientData = [];
+                
+        //         // Process each row
+        //         for (let i = 1; i < rows.length; i++) {
+        //             const row = rows[i];
+                    
+        //             // Skip empty rows or rows without enough data
+        //             if (!row || row.length < 3) continue;
+                    
+        //             const ingredient = (row[0] || '').trim();
+        //             const purchasePrice = parseFloat((row[1] || '').replace(/[^\d.-]/g, '')) || null;
+        //             const packageWeight = parseFloat((row[2] || '').replace(/[^\d.-]/g, '')) || null;
+                    
+        //             // Skip if no ingredient name
+        //             if (!ingredient) continue;
+                    
+        //             // Determine category based on ingredient name
+        //             const category = determineCategory(ingredient);
+                    
+        //             ingredientData.push({
+        //                 ingredient: ingredient,
+        //                 purchasePrice: purchasePrice,
+        //                 packageWeight: packageWeight,
+        //                 category: category
+        //             });
+        //         }
+                
+        //         // Update the UI with new data
+        //         updateCategories();
+        //         populateIngredients();
+                
+        //         // Show success message
+        //         statusDiv.textContent = `✅ Successfully loaded ${ingredientData.length} ingredients!`;
+        //         statusDiv.style.color = 'var(--success)';
+        //         loadText.textContent = 'Refresh Prices from Google Sheets';
+                
+        //     } catch (error) {
+        //         console.error('Error loading data from Google Sheets:', error);
+        //         statusDiv.textContent = `❌ Error: ${error.message}. Using fallback data.`;
+        //         statusDiv.style.color = 'var(--danger)';
+        //         loadText.textContent = 'Retry Loading Data';
+                
+        //         // Load fallback data
+        //         loadFallbackData();
+        //     } finally {
+        //         // Hide loading state
+        //         loadSpinner.classList.add('hidden');
+        //         loadBtn.disabled = false;
+        //     }
+        // }
 
         // Load data from Google Sheets
-        async function loadDataFromGoogleSheets() {
-            const loadBtn = document.getElementById('load-data-btn');
-            const loadText = document.getElementById('load-text');
-            const loadSpinner = document.getElementById('load-spinner');
-            const statusDiv = document.getElementById('load-status');
-            
-            // Show loading state
-            loadText.textContent = 'Loading...';
-            loadSpinner.classList.remove('hidden');
-            loadBtn.disabled = true;
-            statusDiv.textContent = 'Fetching data from Google Sheets...';
-            statusDiv.style.color = 'var(--warning)';
-            
+async function loadDataFromGoogleSheets() {
+    const loadBtn = document.getElementById('load-data-btn');
+    const loadText = document.getElementById('load-text');
+    const loadSpinner = document.getElementById('load-spinner');
+    const statusDiv = document.getElementById('load-status');
+    
+    // Show loading state
+    loadText.textContent = 'Loading...';
+    loadSpinner.classList.remove('hidden');
+    loadBtn.disabled = true;
+    statusDiv.textContent = 'Fetching data from Google Sheets...';
+    statusDiv.style.color = 'var(--warning)';
+    
+    try {
+        // Try multiple URL formats
+        const urlFormats = [
+            'https://docs.google.com/spreadsheets/d/e/2PACX-1vQOjljUlumLK8Xl2y20G0hMe-KoCFNsxDnof4hkSZitNAjbcFOWxK4ngFqDwloI_6uMAWRCZLLyorjx/pub?output=csv',
+            'https://docs.google.com/spreadsheets/d/e/2PACX-1vQOjljUlumLK8Xl2y20G0hMe-KoCFNsxDnof4hkSZitNAjbcFOWxK4ngFqDwloI_6uMAWRCZLLyorjx/pub?gid=0&single=true&output=csv',
+            'https://docs.google.com/spreadsheets/d/e/2PACX-1vQOjljUlumLK8Xl2y20G0hMe-KoCFNsxDnof4hkSZitNAjbcFOWxK4ngFqDwloI_6uMAWRCZLLyorjx/pub?gid=0&single=true'
+        ];
+        
+        let csvData = null;
+        
+        // Try each URL format
+        for (const url of urlFormats) {
             try {
-                // Add timestamp to avoid caching issues
-                const url = GOOGLE_SHEETS_URL + '&t=' + new Date().getTime();
+                console.log('Trying URL:', url);
+                const response = await fetch(url + '&t=' + new Date().getTime());
                 
-                const response = await fetch(url);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                if (response.ok) {
+                    const data = await response.text();
+                    if (data && data.trim().length > 0) {
+                        csvData = data;
+                        console.log('Success with URL:', url);
+                        break;
+                    }
                 }
-                
-                const csvData = await response.text();
-                
-                if (!csvData || csvData.trim().length === 0) {
-                    throw new Error('No data received from Google Sheets');
-                }
-                
-                // Parse CSV data
-                const rows = parseCSV(csvData);
-                
-                if (rows.length === 0) {
-                    throw new Error('No valid data found in CSV');
-                }
-                
-                // Clear existing data
-                ingredientData = [];
-                
-                // Process each row
-                for (let i = 1; i < rows.length; i++) {
-                    const row = rows[i];
-                    
-                    // Skip empty rows or rows without enough data
-                    if (!row || row.length < 3) continue;
-                    
-                    const ingredient = (row[0] || '').trim();
-                    const purchasePrice = parseFloat((row[1] || '').replace(/[^\d.-]/g, '')) || null;
-                    const packageWeight = parseFloat((row[2] || '').replace(/[^\d.-]/g, '')) || null;
-                    
-                    // Skip if no ingredient name
-                    if (!ingredient) continue;
-                    
-                    // Determine category based on ingredient name
-                    const category = determineCategory(ingredient);
-                    
-                    ingredientData.push({
-                        ingredient: ingredient,
-                        purchasePrice: purchasePrice,
-                        packageWeight: packageWeight,
-                        category: category
-                    });
-                }
-                
-                // Update the UI with new data
-                updateCategories();
-                populateIngredients();
-                
-                // Show success message
-                statusDiv.textContent = `✅ Successfully loaded ${ingredientData.length} ingredients!`;
-                statusDiv.style.color = 'var(--success)';
-                loadText.textContent = 'Refresh Prices from Google Sheets';
-                
-            } catch (error) {
-                console.error('Error loading data from Google Sheets:', error);
-                statusDiv.textContent = `❌ Error: ${error.message}. Using fallback data.`;
-                statusDiv.style.color = 'var(--danger)';
-                loadText.textContent = 'Retry Loading Data';
-                
-                // Load fallback data
-                loadFallbackData();
-            } finally {
-                // Hide loading state
-                loadSpinner.classList.add('hidden');
-                loadBtn.disabled = false;
+            } catch (fetchError) {
+                console.log('Failed with URL:', url, fetchError);
+                continue;
             }
         }
-
+        
+        if (!csvData) {
+            throw new Error('Could not fetch data from any URL format');
+        }
+        
+        // Parse CSV data
+        const rows = csvData.split('\n');
+        
+        // Clear existing data
+        ingredientData = [];
+        
+        // Process each row
+        for (let i = 1; i < rows.length; i++) {
+            const row = rows[i].trim();
+            if (!row) continue;
+            
+            // Simple CSV parsing
+            const cells = row.split(',').map(cell => cell.trim().replace(/"/g, ''));
+            
+            if (cells.length < 3) continue;
+            
+            const ingredient = cells[0];
+            const purchasePrice = parseFloat(cells[1]) || null;
+            const packageWeight = parseFloat(cells[2]) || null;
+            
+            if (!ingredient || ingredient === 'ingredient') continue;
+            
+            // Determine category
+            const category = determineCategory(ingredient);
+            
+            ingredientData.push({
+                ingredient: ingredient,
+                purchasePrice: purchasePrice,
+                packageWeight: packageWeight,
+                category: category
+            });
+        }
+        
+        // Update UI
+        updateCategories();
+        populateIngredients();
+        
+        // Show success
+        statusDiv.textContent = `✅ Loaded ${ingredientData.length} ingredients!`;
+        statusDiv.style.color = 'var(--success)';
+        loadText.textContent = 'Refresh Prices';
+        
+    } catch (error) {
+        console.error('Error:', error);
+        statusDiv.textContent = `⚠️ Using local data. Google Sheets error: ${error.message}`;
+        statusDiv.style.color = 'var(--warning)';
+        loadText.textContent = 'Retry Loading';
+        
+        // Load fallback
+        loadFallbackData();
+    } finally {
+        loadSpinner.classList.add('hidden');
+        loadBtn.disabled = false;
+    }
+}
         // Robust CSV parsing function
         function parseCSV(csvText) {
             const rows = [];
